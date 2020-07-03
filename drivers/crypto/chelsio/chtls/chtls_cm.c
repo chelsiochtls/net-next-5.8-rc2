@@ -95,6 +95,7 @@ static struct net_device *chtls_find_netdev(struct chtls_dev *cdev,
 	struct net_device *ndev = cdev->ports[0];
 #if IS_ENABLED(CONFIG_IPV6)
 	struct net_device *temp;
+	bool put = false;
 	int addr_type;
 #endif
 
@@ -103,6 +104,7 @@ static struct net_device *chtls_find_netdev(struct chtls_dev *cdev,
 		if (likely(!inet_sk(sk)->inet_rcv_saddr))
 			return ndev;
 		ndev = ip_dev_find(&init_net, inet_sk(sk)->inet_rcv_saddr);
+		put = true;
 		break;
 #if IS_ENABLED(CONFIG_IPV6)
 	case PF_INET6:
@@ -125,6 +127,9 @@ static struct net_device *chtls_find_netdev(struct chtls_dev *cdev,
 
 	if (!ndev)
 		return NULL;
+
+	if (put)
+		dev_put(ndev);
 
 	if (is_vlan_dev(ndev))
 		return vlan_dev_real_dev(ndev);
