@@ -133,8 +133,13 @@ static int __tcp_set_ulp(struct sock *sk, const struct tcp_ulp_ops *ulp_ops)
 	int err;
 
 	err = -EEXIST;
+	/* if icsk_ulp_ops is already registered that means ulp ops is initialized for
+	 * TLS_HW_RECORD tls config (tls_toe_bypass() is called before tcp socket listen).
+	 * and connection is established whether in kernel or adapter, so get the tls ops
+	 * reference.
+	 */
 	if (icsk->icsk_ulp_ops)
-		goto out_err;
+		return 0;
 
 	err = ulp_ops->init(sk);
 	if (err)

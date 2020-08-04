@@ -41,17 +41,6 @@
 static LIST_HEAD(device_list);
 static DEFINE_SPINLOCK(device_spinlock);
 
-static void tls_toe_sk_destruct(struct sock *sk)
-{
-	struct inet_connection_sock *icsk = inet_csk(sk);
-	struct tls_context *ctx = tls_get_ctx(sk);
-
-	ctx->sk_destruct(sk);
-	/* Free ctx */
-	rcu_assign_pointer(icsk->icsk_ulp_data, NULL);
-	tls_ctx_free(sk, ctx);
-}
-
 int tls_toe_bypass(struct sock *sk)
 {
 	struct tls_toe_device *dev;
@@ -65,8 +54,6 @@ int tls_toe_bypass(struct sock *sk)
 			if (!ctx)
 				goto out;
 
-			ctx->sk_destruct = sk->sk_destruct;
-			sk->sk_destruct = tls_toe_sk_destruct;
 			ctx->rx_conf = TLS_HW_RECORD;
 			ctx->tx_conf = TLS_HW_RECORD;
 			update_sk_prot(sk, ctx);
@@ -96,6 +83,12 @@ void tls_toe_unhash(struct sock *sk)
 	}
 	spin_unlock_bh(&device_spinlock);
 	ctx->sk_proto->unhash(sk);
+
+	if (sk->sk_state != TCP_LISTEN)
+		return;
+	/* Free ctx */
+	rcu_assign_pointer(inet_csk(sk)->icsk_ulp_data, NULL);
+	tls_ctx_free(sk, ctx);
 }
 
 int tls_toe_hash(struct sock *sk)
