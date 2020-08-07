@@ -95,7 +95,6 @@ static struct net_device *chtls_find_netdev(struct chtls_dev *cdev,
 	struct net_device *ndev = cdev->ports[0];
 #if IS_ENABLED(CONFIG_IPV6)
 	struct net_device *temp;
-	bool put = false;
 	int addr_type;
 #endif
 
@@ -103,8 +102,7 @@ static struct net_device *chtls_find_netdev(struct chtls_dev *cdev,
 	case PF_INET:
 		if (likely(!inet_sk(sk)->inet_rcv_saddr))
 			return ndev;
-		ndev = ip_dev_find(&init_net, inet_sk(sk)->inet_rcv_saddr);
-		put = true;
+		ndev = __ip_dev_find(&init_net, inet_sk(sk)->inet_rcv_saddr, false);
 		break;
 #if IS_ENABLED(CONFIG_IPV6)
 	case PF_INET6:
@@ -127,9 +125,6 @@ static struct net_device *chtls_find_netdev(struct chtls_dev *cdev,
 
 	if (!ndev)
 		return NULL;
-
-	if (put)
-		dev_put(ndev);
 
 	if (is_vlan_dev(ndev))
 		return vlan_dev_real_dev(ndev);
@@ -1060,7 +1055,7 @@ static void chtls_pass_accept_rpl(struct sk_buff *skb,
 	opt2 |= CONG_CNTRL_V(CONG_ALG_NEWRENO);
 	opt2 |= T5_ISS_F;
 	opt2 |= T5_OPT_2_VALID_F;
-	opt2 |= WND_SCALE_EN_V(!!(sock_net(sk)->ipv4.sysctl_tcp_window_scaling));
+	opt2 |= WND_SCALE_EN_V(WSCALE_OK(tp));
 	rpl5->opt0 = cpu_to_be64(opt0);
 	rpl5->opt2 = cpu_to_be32(opt2);
 	rpl5->iss = cpu_to_be32((prandom_u32() & ~7UL) - 1);
